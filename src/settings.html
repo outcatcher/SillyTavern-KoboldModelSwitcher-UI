@@ -1,0 +1,57 @@
+<div id="kobold-switcher-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>
+                <span>KoboldCpp Switcher</span>
+            </b>
+            <div
+                class="inline-drawer-icon fa-solid fa-circle-chevron-down down"
+            ></div>
+        </div>
+        <div class="inline-drawer-content">
+            <label for="run-templates">Run template</label>
+            <div class="flex-container flexnowrap">
+                <select id="run-templates" class="text_pole flex1">
+                    <!-- available run templates to be inserted here -->
+                </select>
+                <div
+                    id="kss-run-template-start"
+                    class="menu_button fa-solid fa-play active interactable"
+                ></div>
+                <div
+                    id="kss-run-template-edit"
+                    class="menu_button menu_button_icon interactable"
+                >
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div
+                    id="kss-run-template-clone"
+                    class="menu_button menu_button_icon interactable"
+                >
+                    <i class="fa-solid fa-clone"></i>
+                </div>
+                <div
+                    id="kss-run-template-create"
+                    class="menu_button menu_button_icon interactable"
+                >
+                    <i class="fa-solid fa-plus"></i>
+                </div>
+                <div
+                    id="kss-run-template-delete"
+                    class="menu_button menu_button_icon interactable"
+                >
+                    <i class="fa-solid fa-trash-can"></i>
+                </div>
+            </div>
+            <label for="kss-current-status">Currently running model</label>
+            <div class="flex-container flexnowrap">
+                <div
+                    id="kss-current-status"
+                    class="flex-container flexnowrap redOverlayGlow"
+                >
+                    <h4>All models are offline</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

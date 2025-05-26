@@ -1,12 +1,12 @@
 {
-    "display_name": "Template Extension",
+    "display_name": "KoboldCpp Model Switcher",
     "loading_order": 1,
     "requires": [],
     "optional": [],
     "js": "dist/index.js",
     "css": "",
-    "author": "Cohee1207",
-    "version": "1.0.0",
-    "homePage": "https://github.com/SillyTavern/Extension-WebpackTemplate",
+    "author": "outcatcher",
+    "version": "0.1.0",
+    "homePage": "https://github.com/outcatcher/SillyTavern-KoboldModelSwitcher-UI",
     "auto_update": true
 }

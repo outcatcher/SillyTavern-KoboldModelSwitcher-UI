@@ -1,4 +1,4 @@
-export {};
+export { };
 
 // 1. Import when extension is user-scoped
 import '../../../../public/global';

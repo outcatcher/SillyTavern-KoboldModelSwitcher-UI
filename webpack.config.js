@@ -5,10 +5,13 @@ import TerserPlugin from 'terser-webpack-plugin';
 const __dirname = import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url));
 
 export default {
+    devtool: false,
     entry: path.join(__dirname, 'src/index.ts'),
     output: {
         path: path.join(__dirname, 'dist/'),
         filename: 'index.js',
+        libraryTarget: 'commonjs',
+        libraryExport: 'default',
     },
     resolve: {
         extensions: ['.ts', '.js'],
