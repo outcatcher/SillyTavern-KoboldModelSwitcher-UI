@@ -1,0 +1,28 @@
+<div id="kobold-model-edit-template">
+    <div>
+        <label for="model">Model Name</label>
+        <select id="model" class="text_pole flex1">
+            <!-- available models to be inserted here -->
+        </select>
+    </div>
+    <div>
+        <label for="context-size">Context Size</label>
+        <select id="context-size" class="text_pole flex1">
+            <!-- context size options to be inserted here -->
+        </select>
+    </div>
+    <div>
+        <label for="gpu-layers">GPU Layers</label>
+        <input type="number" id="gpu-layers" class="text_pole" />
+    </div>
+    <div>
+        <label for="threads">Threads</label>
+        <input type="number" id="threads" class="text_pole" min="-1" />
+    </div>
+    <div>
+        <label for="tensor-split"
+            >Tensor split (space-separated list of floats)</label
+        >
+        <input type="text" id="tensor-split" class="text_pole" />
+    </div>
+</div>

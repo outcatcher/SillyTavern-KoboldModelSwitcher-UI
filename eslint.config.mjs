@@ -1,35 +1,78 @@
-import { defineConfig } from 'eslint/config';
-import globals from 'globals';
-import js from '@eslint/js';
+import eslint from '@eslint/js';
+import stylisticTs from '@stylistic/eslint-plugin-ts';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import tseslint from 'typescript-eslint';
 
-export default defineConfig([
-    { files: ['**/*.{js,mjs,cjs,ts}'] },
-    { files: ['**/*.{js,mjs,cjs,ts}'], languageOptions: { globals: globals.browser } },
-    { files: ['**/*.{js,mjs,cjs,ts}'], plugins: { js }, extends: ['js/recommended'] },
-    tseslint.configs.recommended,
+export default tseslint.config(
     {
-        ignores: ['**/dist/**', '**/node_modules/**'],
+        ignores: [
+            'node_modules/*',
+            'dist/*',
+            'webpack.config.js',
+        ],
     },
     {
+        extends: [
+            eslint.configs.all,
+        ],
         rules: {
-            'prefer-const': 'error',
-            '@typescript-eslint/no-unused-vars': ['error', { args: 'none' }],
-            'no-control-regex': 'off',
-            'no-constant-condition': ['error', { checkLoops: false }],
-            'require-yield': 'off',
-            'quotes': ['error', 'single'],
-            'semi': ['error', 'always'],
-            'indent': ['error', 4, { SwitchCase: 1, FunctionDeclaration: { parameters: 'first' } }],
-            'comma-dangle': ['error', 'always-multiline'],
-            'eol-last': ['error', 'always'],
-            'no-trailing-spaces': 'error',
-            'object-curly-spacing': ['error', 'always'],
-            'space-infix-ops': 'error',
-            'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
-            'no-cond-assign': 'error',
-            'no-unneeded-ternary': 'error',
-            'no-irregular-whitespace': ['error', { skipStrings: true, skipTemplates: true }],
+            'no-warning-comments': 'warn',
+            'max-statements': ['warn', { max: 15 }],
+            'max-lines-per-function': 'warn',
+            // Ugly
+            'one-var': 'off',
+            // Ha-ha, ternary power
+            'no-ternary': 'off',
+            // Sort by meaning
+            'sort-keys': 'off',
+            // Better imports with fixs
+            'sort-imports': 'off',
+            'simple-import-sort/imports': 'error',
+            'simple-import-sort/exports': 'error',
+            // I use _ for unused arguments and vars
+            'id-length': ['error', {
+                exceptions: ['_'],
+            }],
+            'no-magic-numbers': ['error', {
+                ignore: [0, 1],
+            }],
+            'no-unused-vars': 'off',
+            // Let's trust in humanity
+            'no-undefined': 'off',
+            'arrow-body-style': ['error', 'as-needed', { 'requireReturnForObjectLiteral': true }],
+            'max-params': ['error', { max: 4 }],
+            'max-lines': ['error', { max: 500 }]
+        },
+        plugins: {
+            'simple-import-sort': simpleImportSort,
+            '@stylistic/ts': stylisticTs,
         },
     },
-]);
+    {
+        files: [
+            '**/*.ts'
+        ],
+        extends: [
+            tseslint.configs.strictTypeChecked,
+            tseslint.configs.stylisticTypeChecked,
+        ],
+        rules: {
+            // Too many false positives in 3rd-party libs
+            '@typescript-eslint/no-unsafe-cal': 'off',
+            '@typescript-eslint/no-unused-vars': ['error', {
+                argsIgnorePattern: '_+',
+                varsIgnorePattern: '_+',
+            }],
+            // Too stupid of async, only false-positives so far
+            '@typescript-eslint/no-unnecessary-condition': 'off'
+        },
+    },
+    {
+        languageOptions: {
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    },
+);
