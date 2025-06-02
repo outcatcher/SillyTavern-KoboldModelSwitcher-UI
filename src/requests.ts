@@ -1,4 +1,4 @@
-import { ModelState } from "./consts"
+import { ModelStatus } from "./consts"
 import { RunTemplate } from "./settings"
 
 const modelURL = '/api/plugins/kobold-switcher/model'
@@ -42,21 +42,22 @@ export const loadAvailableModels = async () => await fetch('/api/plugins/kobold-
     })
     .then((data: { models: string[] }) => data.models)
 
-export interface ModelStatus {
-    state: ModelState
+export interface ModelState {
+    status: ModelStatus
     model: string
+    error?: string
 }
 
 export const loadModelStatus = async () => await fetch(modelURL)
     .then(resp => {
         if (!resp.ok) {
             return Promise.reject(
-                new Error(`requiest unsuccessfull, received code ${resp.status.toString()} (${resp.statusText})`)
+                new UnexpectedStatusCode(`got unexpected status code ${resp.status.toString()}`)
             )
         }
 
         return resp.json()
-    }) as ModelStatus
+    }) as ModelState
 
 export const startModel = async (opts: RunTemplate) => {
     await fetch(modelURL, {

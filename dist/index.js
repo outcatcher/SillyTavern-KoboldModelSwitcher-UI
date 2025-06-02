@@ -523,7 +523,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _e_ll_models_SillyTavern_Launcher_SillyTavern_public_scripts_slash_commands_SlashCommandEnumValue__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../../../e/ll_models/SillyTavern-Launcher/SillyTavern/public/scripts/slash-commands/SlashCommandEnumValue */ "../../../../e/ll_models/SillyTavern-Launcher/SillyTavern/public/scripts/slash-commands/SlashCommandEnumValue.js");
 /* harmony import */ var _model_state__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./model_state */ "./src/model_state.ts");
-/* harmony import */ var _settings__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./settings */ "./src/settings.ts");
+/* harmony import */ var _requests__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./requests */ "./src/requests.ts");
+/* harmony import */ var _settings__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./settings */ "./src/settings.ts");
 var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -536,31 +537,46 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 
 
 
-const { SlashCommandParser, SlashCommandArgument, SlashCommand, ARGUMENT_TYPE, } = SillyTavern.getContext();
+
+const { SlashCommandParser, SlashCommandNamedArgument, SlashCommand, ARGUMENT_TYPE, } = SillyTavern.getContext();
 const registerSlashCommands = () => {
     const startModelCommand = SlashCommand.fromProps({
-        name: 'start-model',
-        callback: (_nargs, args) => __awaiter(void 0, void 0, void 0, function* () {
-            const [name] = args;
-            return yield (0,_model_state__WEBPACK_IMPORTED_MODULE_1__.startOfflineModelAndWait)(name)
+        name: 'kobold-start',
+        callback: (nargs) => __awaiter(void 0, void 0, void 0, function* () {
+            const { name } = nargs;
+            const selectedModel = (0,_settings__WEBPACK_IMPORTED_MODULE_3__.getSettings)().runTemplates.find(tmpl => tmpl.name === name);
+            if (selectedModel === undefined) {
+                const errMsg = `Can't find model ${name}`;
+                toastr.error(errMsg);
+                return errMsg;
+            }
+            (0,_model_state__WEBPACK_IMPORTED_MODULE_1__.refreshModelState)({ model: selectedModel.model, status: 'loading' });
+            const currentStatus = yield (0,_requests__WEBPACK_IMPORTED_MODULE_2__.loadModelStatus)();
+            if (currentStatus.status === 'online') {
+                yield (0,_requests__WEBPACK_IMPORTED_MODULE_2__.stopModel)()
+                    .then(() => (0,_model_state__WEBPACK_IMPORTED_MODULE_1__.waitForModelStatus)('offline'))
+                    .catch();
+            }
+            return yield (0,_requests__WEBPACK_IMPORTED_MODULE_2__.startModel)(selectedModel)
+                .then(() => (0,_model_state__WEBPACK_IMPORTED_MODULE_1__.waitForModelStatus)('online'))
+                .then(state => (0,_model_state__WEBPACK_IMPORTED_MODULE_1__.refreshModelState)(state))
                 .catch((err) => {
                 const errMsg = `Failed to start model ${name}: ${err.message}`;
                 toastr.error(errMsg);
                 return errMsg;
             });
         }),
-        unnamedArgumentList: [
-            SlashCommandArgument.fromProps({
+        namedArgumentList: [
+            SlashCommandNamedArgument.fromProps({
+                name: 'name',
                 description: 'name of template to start',
                 typeList: [ARGUMENT_TYPE.STRING],
                 isRequired: true,
-                enumProvider: () => (0,_settings__WEBPACK_IMPORTED_MODULE_2__.getSettings)().runTemplates.map(tmpl => new _e_ll_models_SillyTavern_Launcher_SillyTavern_public_scripts_slash_commands_SlashCommandEnumValue__WEBPACK_IMPORTED_MODULE_0__.SlashCommandEnumValue(tmpl.name, tmpl.model)),
+                enumProvider: () => (0,_settings__WEBPACK_IMPORTED_MODULE_3__.getSettings)().runTemplates.map(tmpl => new _e_ll_models_SillyTavern_Launcher_SillyTavern_public_scripts_slash_commands_SlashCommandEnumValue__WEBPACK_IMPORTED_MODULE_0__.SlashCommandEnumValue(tmpl.name, tmpl.model)),
                 forceEnum: true,
-                defaultValue: (0,_settings__WEBPACK_IMPORTED_MODULE_2__.getSettings)().selectedRunTemplate,
             }),
         ],
         helpString: 'Starts KoboldCpp with configuration from selected template',
-        splitUnnamedArgument: true,
     });
     SlashCommandParser.addCommandObject(startModelCommand);
 };
@@ -686,12 +702,11 @@ __webpack_async_result__();
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   startOfflineModelAndWait: () => (/* binding */ startOfflineModelAndWait),
-/* harmony export */   stopOnlineModelAndWait: () => (/* binding */ stopOnlineModelAndWait),
+/* harmony export */   refreshModelState: () => (/* binding */ refreshModelState),
 /* harmony export */   waitForModelStatus: () => (/* binding */ waitForModelStatus)
 /* harmony export */ });
-/* harmony import */ var _requests__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./requests */ "./src/requests.ts");
-/* harmony import */ var _settings__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./settings */ "./src/settings.ts");
+/* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.ts");
+/* harmony import */ var _requests__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./requests */ "./src/requests.ts");
 /* harmony import */ var _timers__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./timers */ "./src/timers.ts");
 var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -707,35 +722,36 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 
 const msInS = 1000;
 // Waits for target status tracking progress with a toast returning final model state.
-const waitForModelStatus = (templateName, state) => __awaiter(void 0, void 0, void 0, function* () {
-    const params = state === 'online' ? {
+const waitForModelStatus = (status) => __awaiter(void 0, void 0, void 0, function* () {
+    const params = status === 'online' ? {
         timout: 120000,
         retry: 2000,
-        waitMsg: `Starting KoboldCpp with template ${templateName}`,
+        waitMsg: `Starting KoboldCpp...`,
     } : {
         timout: 10000,
         retry: 200,
         waitMsg: `Stopping KoboldCpp currently running model`,
     };
     const progressToast = toastr.info(params.waitMsg, undefined, { timeOut: params.timout });
-    let lastModelState = (yield (0,_requests__WEBPACK_IMPORTED_MODULE_0__.loadModelStatus)()).state;
+    let lastModelState = yield (0,_requests__WEBPACK_IMPORTED_MODULE_1__.loadModelStatus)();
     const modelStateReached = () => __awaiter(void 0, void 0, void 0, function* () {
-        lastModelState = (yield (0,_requests__WEBPACK_IMPORTED_MODULE_0__.loadModelStatus)()).state;
-        return [state, 'failed'].includes(lastModelState);
+        lastModelState = yield (0,_requests__WEBPACK_IMPORTED_MODULE_1__.loadModelStatus)();
+        return [status, 'failed'].includes(lastModelState.status);
     });
-    const online = state === 'online';
+    const online = status === 'online';
     return yield (0,_timers__WEBPACK_IMPORTED_MODULE_2__.waitFor)(modelStateReached, params.timout, params.retry)
         .then(() => {
-        if (lastModelState === state) {
-            toastr.success(`Model from template ${templateName} successfully ${online ? 'started' : 'stopped'}`);
+        var _a;
+        if (lastModelState.status === status) {
+            toastr.success('Don\'t forget to update settings', `Model successfully ${online ? 'started' : 'stopped'}`);
         }
         else {
-            toastr.error(`Model from template ${templateName} failed to ${online ? 'start' : 'stop'}`);
+            toastr.error(`Error ${(_a = lastModelState.error) !== null && _a !== void 0 ? _a : 'unknown'}`, `Model failed to ${online ? 'start' : 'stop'}`);
         }
         return lastModelState;
     })
         .catch(() => {
-        toastr.error('Error', `Failed to wait for model status ${state} ` +
+        toastr.error('Error', `Failed to wait for model status ${status} ` +
             `after ${(params.timout / msInS).toString()} seconds`);
         return lastModelState;
     })
@@ -743,18 +759,54 @@ const waitForModelStatus = (templateName, state) => __awaiter(void 0, void 0, vo
         progressToast.remove();
     });
 });
-const startOfflineModelAndWait = (templateName) => __awaiter(void 0, void 0, void 0, function* () {
-    const selectedModel = (0,_settings__WEBPACK_IMPORTED_MODULE_1__.getSettings)().runTemplates.find(tmpl => tmpl.name === templateName);
-    if (selectedModel === undefined) {
-        throw new Error(`can't find model ${templateName}`);
+const statusClasses = ['redOverlayGlow', 'okText', 'comment'], switcherLoaderClasses = ['loader'], switcherOfflineClasses = ['fa-play', 'active'], switcherOnlineClasses = ['fa-stop', 'redOverlayGlow'];
+const updateStateElements = (state) => {
+    const elements = {
+        switcher: document.getElementById('kss-run-template-start'),
+        status: document.getElementById('kss-current-status')
+    };
+    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses, ...switcherLoaderClasses);
+    elements.switcher.classList.add(...state.switcherClasses);
+    elements.switcher.onclick = state.clickAction;
+    elements.status.classList.remove(...statusClasses);
+    elements.status.classList.add(...state.statusClasses);
+    elements.status.innerHTML = `<h4>${state.text}</h4>`;
+};
+// Refresh page elements to match the model states
+const refreshModelState = (state) => {
+    globalThis.console.info(`[${_consts__WEBPACK_IMPORTED_MODULE_0__.MODULE_NAME}]`, `Updating model info for status ${state.status}`);
+    globalThis.console.info(`[${_consts__WEBPACK_IMPORTED_MODULE_0__.MODULE_NAME}]`, `Click handler is ${globalThis.statusSwitchAction.toString()}`);
+    switch (state.status) {
+        case 'failed':
+        case 'offline': {
+            updateStateElements({
+                switcherClasses: switcherOfflineClasses,
+                statusClasses: ['redOverlayGlow'],
+                text: 'All models are offline',
+                clickAction: globalThis.statusSwitchAction,
+            });
+            break;
+        }
+        case 'online': {
+            updateStateElements({
+                switcherClasses: switcherOnlineClasses,
+                statusClasses: ['okText'],
+                text: state.model,
+                clickAction: globalThis.statusSwitchAction,
+            });
+            break;
+        }
+        default: {
+            updateStateElements({
+                switcherClasses: switcherLoaderClasses,
+                statusClasses: ['comment'],
+                text: `Loading model ${state.model}...`,
+                clickAction: null,
+            });
+        }
     }
-    return yield (0,_requests__WEBPACK_IMPORTED_MODULE_0__.startModel)(selectedModel)
-        .then(() => waitForModelStatus(templateName, 'online'));
-});
-const stopOnlineModelAndWait = (templateName) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield (0,_requests__WEBPACK_IMPORTED_MODULE_0__.stopModel)()
-        .then(() => waitForModelStatus(templateName, 'offline'));
-});
+    return `Model ${state.model} in status ${state.status}`;
+};
 
 
 /***/ }),
@@ -818,7 +870,7 @@ const loadModelStatus = () => __awaiter(void 0, void 0, void 0, function* () {
     return yield fetch(modelURL)
         .then(resp => {
         if (!resp.ok) {
-            return Promise.reject(new Error(`requiest unsuccessfull, received code ${resp.status.toString()} (${resp.statusText})`));
+            return Promise.reject(new UnexpectedStatusCode(`got unexpected status code ${resp.status.toString()}`));
         }
         return resp.json();
     });
@@ -1019,7 +1071,8 @@ const saveExtensionSettings = () => {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   addSettingsControls: () => (/* binding */ addSettingsControls)
+/* harmony export */   addSettingsControls: () => (/* binding */ addSettingsControls),
+/* harmony export */   switchRunStatus: () => (/* binding */ switchRunStatus)
 /* harmony export */ });
 /* harmony import */ var _consts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./consts */ "./src/consts.ts");
 /* harmony import */ var _elements__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./elements */ "./src/elements.ts");
@@ -1117,7 +1170,7 @@ const checkForDuplicates = (templateName) => {
     return success;
 };
 const showCreatePopup = () => __awaiter(void 0, void 0, void 0, function* () {
-    globalThis.console.info('Create popup created');
+    globalThis.console.info(`[${_consts__WEBPACK_IMPORTED_MODULE_0__.MODULE_NAME}]`, 'Create popup created');
     const settings = (0,_settings__WEBPACK_IMPORTED_MODULE_5__.getSettings)();
     const popup = new Popup('New run template name (UNIQUE)', POPUP_TYPE.INPUT, '', {
         okButton: 'Create',
@@ -1165,7 +1218,7 @@ const showEditPopup = () => __awaiter(void 0, void 0, void 0, function* () {
     const targetName = select.value;
     const template = (0,_settings__WEBPACK_IMPORTED_MODULE_5__.getSettings)().runTemplates.find(tmp => tmp.name === targetName);
     if (template === undefined) {
-        globalThis.console.error(`run template not found by name ${targetName}`);
+        globalThis.console.error(`[${_consts__WEBPACK_IMPORTED_MODULE_0__.MODULE_NAME}]`, `run template not found by name ${targetName}`);
         return;
     }
     const updatedTemplate = yield showRunTemplateEditPopup(template);
@@ -1193,79 +1246,41 @@ const updateSelectedTemplate = (event) => {
     (0,_settings__WEBPACK_IMPORTED_MODULE_5__.getSettings)().selectedRunTemplate = event.target.value;
     (0,_settings__WEBPACK_IMPORTED_MODULE_5__.saveExtensionSettings)();
 };
-const statusClasses = ['redOverlayGlow', 'okText', 'comment'], switcherLoaderClasses = ['loader'], switcherOfflineClasses = ['fa-play', 'active'], switcherOnlineClasses = ['fa-stop', 'redOverlayGlow'];
-const updateStateElements = (state) => {
-    const elements = {
-        switcher: document.getElementById('kss-run-template-start'),
-        status: document.getElementById('kss-current-status')
-    };
-    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses, ...switcherLoaderClasses);
-    elements.switcher.classList.add(...state.switcherClasses);
-    elements.status.classList.remove(...statusClasses);
-    elements.status.classList.add(...state.statusClasses);
-    elements.status.innerHTML = `<h4>${state.text}</h4>`;
-};
-const refreshModelState = (state, modelName) => {
-    globalThis.console.info(`Updating model info for state ${state}`);
-    switch (state) {
-        case 'failed':
-        case 'offline': {
-            updateStateElements({
-                switcherClasses: switcherOfflineClasses,
-                statusClasses: ['redOverlayGlow'],
-                text: 'All models are offline',
-                clickAction: globalThis.statusSwitchAction,
-            });
-            return;
-        }
-        case 'online': {
-            updateStateElements({
-                switcherClasses: switcherOnlineClasses,
-                statusClasses: ['okText'],
-                text: modelName !== null && modelName !== void 0 ? modelName : 'Unknown model',
-                clickAction: globalThis.statusSwitchAction,
-            });
-            return;
-        }
-        default: {
-            updateStateElements({
-                switcherClasses: switcherOnlineClasses,
-                statusClasses: ['comment'],
-                text: 'Loading...',
-                clickAction: null,
-            });
-        }
-    }
-};
 const switchRunStatus = () => __awaiter(void 0, void 0, void 0, function* () {
     const selectedTemplate = (0,_settings__WEBPACK_IMPORTED_MODULE_5__.getSettings)().selectedRunTemplate;
     if (selectedTemplate === undefined) {
         return;
     }
+    const selectedModel = (0,_settings__WEBPACK_IMPORTED_MODULE_5__.getSettings)().runTemplates.find(tmpl => tmpl.name === selectedTemplate);
+    if (selectedModel === undefined) {
+        throw new Error(`can't find model ${selectedTemplate}`);
+    }
     // Blocking input, showing loader
-    refreshModelState('loading');
+    (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.refreshModelState)({ status: 'loading', model: selectedModel.model });
     const currentState = yield (0,_requests__WEBPACK_IMPORTED_MODULE_3__.loadModelStatus)();
     // Handle switch for handable statuses
-    switch (currentState.state) {
+    switch (currentState.status) {
         case 'failed':
         case 'offline': {
-            (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.startOfflineModelAndWait)(selectedTemplate)
-                .then(state => { refreshModelState(state); })
+            (0,_requests__WEBPACK_IMPORTED_MODULE_3__.startModel)(selectedModel)
+                .then(() => (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.waitForModelStatus)('online'))
+                .then(state => (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.refreshModelState)(state))
                 .catch((err) => {
                 toastr.error(err.message);
             });
             break;
         }
         case 'online': {
-            (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.stopOnlineModelAndWait)(selectedTemplate)
-                .then(state => { refreshModelState(state, currentState.model); })
+            (0,_requests__WEBPACK_IMPORTED_MODULE_3__.stopModel)()
+                .then(() => (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.waitForModelStatus)('offline'))
+                .then(state => (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.refreshModelState)(state))
                 .catch((err) => {
                 toastr.error(err.message);
             });
             break;
         }
         default: {
-            toastr.error(`Model ${currentState.model} currently in NOOP state '${currentState.state}'`);
+            toastr.error(`Model ${currentState.model} currently in NOOP state '${currentState.status}'`);
         }
     }
 });
@@ -1286,12 +1301,12 @@ const addSettingsControls = () => __awaiter(void 0, void 0, void 0, function* ()
         edit: document.getElementById('kss-run-template-edit'),
         delete: document.getElementById('kss-run-template-delete'),
     };
+    elements.templatesSelect.onchange = updateSelectedTemplate;
     elements.create.onclick = showCreatePopup;
     elements.clone.onclick = showClonePopup;
     elements.edit.onclick = showEditPopup;
     elements.delete.onclick = showDeletePopup;
-    elements.templatesSelect.onchange = updateSelectedTemplate;
-    refreshModelState((yield (0,_requests__WEBPACK_IMPORTED_MODULE_3__.loadModelStatus)()).state);
+    (0,_model_state__WEBPACK_IMPORTED_MODULE_2__.refreshModelState)(yield (0,_requests__WEBPACK_IMPORTED_MODULE_3__.loadModelStatus)());
     (0,_settings__WEBPACK_IMPORTED_MODULE_5__.saveExtensionSettings)();
     syncSelectWithSettings();
 });

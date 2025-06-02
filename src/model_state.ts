@@ -1,6 +1,5 @@
-import { ModelState } from "./consts"
-import { loadModelStatus, startModel, stopModel } from "./requests"
-import { getSettings } from "./settings"
+import { ModelStatus, MODULE_NAME } from "./consts"
+import { loadModelStatus, ModelState } from "./requests"
 import { waitFor } from "./timers"
 
 const msInS = 1000
@@ -12,11 +11,11 @@ interface waitOpts {
 }
 
 // Waits for target status tracking progress with a toast returning final model state.
-export const waitForModelStatus = async (templateName: string, state: ModelState): Promise<ModelState> => {
-    const params: waitOpts = state === 'online' ? {
+export const waitForModelStatus = async (status: ModelStatus): Promise<ModelState> => {
+    const params: waitOpts = status === 'online' ? {
         timout: 120000,
         retry: 2000,
-        waitMsg: `Starting KoboldCpp with template ${templateName}`,
+        waitMsg: `Starting KoboldCpp...`,
     } : {
         timout: 10000,
         retry: 200,
@@ -29,22 +28,22 @@ export const waitForModelStatus = async (templateName: string, state: ModelState
         { timeOut: params.timout },
     )
 
-    let lastModelState = (await loadModelStatus()).state
+    let lastModelState = await loadModelStatus()
 
     const modelStateReached = async () => {
-        lastModelState = (await loadModelStatus()).state
+        lastModelState = await loadModelStatus()
 
-        return [state, 'failed'].includes(lastModelState)
+        return [status, 'failed'].includes(lastModelState.status)
     }
 
-    const online = state === 'online'
+    const online = status === 'online'
 
     return await waitFor(modelStateReached, params.timout, params.retry)
         .then(() => {
-            if (lastModelState === state) {
-                toastr.success(`Model from template ${templateName} successfully ${online ? 'started' : 'stopped'}`)
+            if (lastModelState.status === status) {
+                toastr.success('Don\'t forget to update settings', `Model successfully ${online ? 'started' : 'stopped'}`)
             } else {
-                toastr.error(`Model from template ${templateName} failed to ${online ? 'start' : 'stop'}`)
+                toastr.error(`Error ${lastModelState.error ?? 'unknown'}`, `Model failed to ${online ? 'start' : 'stop'}`)
             }
 
             return lastModelState
@@ -52,7 +51,7 @@ export const waitForModelStatus = async (templateName: string, state: ModelState
         .catch(() => {
             toastr.error(
                 'Error',
-                `Failed to wait for model status ${state} ` +
+                `Failed to wait for model status ${status} ` +
                 `after ${(params.timout / msInS).toString()} seconds`,
             )
 
@@ -63,17 +62,70 @@ export const waitForModelStatus = async (templateName: string, state: ModelState
         })
 }
 
-export const startOfflineModelAndWait = async (templateName: string) => {
-    const selectedModel = getSettings().runTemplates.find(tmpl => tmpl.name === templateName)
+const
+    statusClasses = ['redOverlayGlow', 'okText', 'comment'],
+    switcherLoaderClasses = ['loader'],
+    switcherOfflineClasses = ['fa-play', 'active'],
+    switcherOnlineClasses = ['fa-stop', 'redOverlayGlow']
 
-    if (selectedModel === undefined) {
-        throw new Error(`can't find model ${templateName}`)
-    }
 
-    return await startModel(selectedModel)
-        .then(() => waitForModelStatus(templateName, 'online'))
+interface switcherState {
+    switcherClasses: string[]
+    statusClasses: string[]
+    text: string
+    clickAction: (() => Promise<void>) | null
 }
 
-export const stopOnlineModelAndWait = async (templateName: string) =>
-    await stopModel()
-        .then(() => waitForModelStatus(templateName, 'offline'))
+const updateStateElements = (state: switcherState) => {
+    const elements = {
+        switcher: document.getElementById('kss-run-template-start') as HTMLDivElement,
+        status: document.getElementById('kss-current-status') as HTMLDivElement
+    }
+
+    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses, ...switcherLoaderClasses)
+    elements.switcher.classList.add(...state.switcherClasses)
+    elements.switcher.onclick = state.clickAction
+
+    elements.status.classList.remove(...statusClasses)
+    elements.status.classList.add(...state.statusClasses)
+
+    elements.status.innerHTML = `<h4>${state.text}</h4>`
+}
+
+// Refresh page elements to match the model states
+export const refreshModelState = (state: ModelState) => {
+    globalThis.console.info(`[${MODULE_NAME}]`, `Updating model info for status ${state.status}`)
+    globalThis.console.info(`[${MODULE_NAME}]`, `Click handler is ${globalThis.statusSwitchAction.toString()}`)
+
+    switch (state.status) {
+        case 'failed':
+        case 'offline': {
+            updateStateElements({
+                switcherClasses: switcherOfflineClasses,
+                statusClasses: ['redOverlayGlow'],
+                text: 'All models are offline',
+                clickAction: globalThis.statusSwitchAction,
+            })
+            break
+        }
+        case 'online': {
+            updateStateElements({
+                switcherClasses: switcherOnlineClasses,
+                statusClasses: ['okText'],
+                text: state.model,
+                clickAction: globalThis.statusSwitchAction,
+            })
+            break
+        }
+        default: {
+            updateStateElements({
+                switcherClasses: switcherLoaderClasses,
+                statusClasses: ['comment'],
+                text: `Loading model ${state.model}...`,
+                clickAction: null,
+            })
+        }
+    }
+
+    return `Model ${state.model} in status ${state.status}`
+}

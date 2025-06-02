@@ -1,7 +1,7 @@
-import { ALLOWED_CTX_SIZES, ModelState, TEXT_LIST_SEP } from "./consts";
+import { ALLOWED_CTX_SIZES, MODULE_NAME, TEXT_LIST_SEP } from "./consts";
 import { generateOption } from "./elements";
-import { startOfflineModelAndWait, stopOnlineModelAndWait } from './model_state';
-import { loadAvailableModels, loadModelStatus } from "./requests";
+import { refreshModelState, waitForModelStatus } from './model_state';
+import { loadAvailableModels, loadModelStatus, startModel, stopModel } from "./requests";
 import editorHTML from './run_template.html';
 import { emptyRunTemplate, getSettings, RunTemplate, saveExtensionSettings } from "./settings";
 import html from './settings.html';
@@ -103,7 +103,7 @@ const checkForDuplicates = (templateName: string) => {
 }
 
 const showCreatePopup = async () => {
-    globalThis.console.info('Create popup created')
+    globalThis.console.info(`[${MODULE_NAME}]`, 'Create popup created')
 
     const settings = getSettings()
 
@@ -126,6 +126,7 @@ const showCreatePopup = async () => {
         }
 
         settings.runTemplates.push({ ...emptyRunTemplate, name: templateName })
+        settings.selectedRunTemplate = templateName
 
         saveExtensionSettings()
     }
@@ -144,6 +145,7 @@ const showClonePopup = async () => {
         return
     }
 
+    // TODO: duplicating showCreatePopup, rewrite
     const popup = new Popup(
         'New run template name (UNIQUE)',
         POPUP_TYPE.INPUT,
@@ -163,6 +165,7 @@ const showClonePopup = async () => {
         }
 
         settings.runTemplates.push({ ...selectedTemplate, name: templateName })
+        settings.selectedRunTemplate = templateName
 
         saveExtensionSettings()
     }
@@ -176,7 +179,7 @@ const showEditPopup = async () => {
 
     const template = getSettings().runTemplates.find(tmp => tmp.name === targetName)
     if (template === undefined) {
-        globalThis.console.error(`run template not found by name ${targetName}`)
+        globalThis.console.error(`[${MODULE_NAME}]`, `run template not found by name ${targetName}`)
 
         return
     }
@@ -218,87 +221,31 @@ const updateSelectedTemplate = (event: Event) => {
     saveExtensionSettings()
 }
 
-const
-    statusClasses = ['redOverlayGlow', 'okText', 'comment'],
-    switcherLoaderClasses = ['loader'],
-    switcherOfflineClasses = ['fa-play', 'active'],
-    switcherOnlineClasses = ['fa-stop', 'redOverlayGlow']
-
-
-interface switcherState {
-    switcherClasses: string[]
-    statusClasses: string[]
-    text: string
-    clickAction: (() => Promise<void>) | null
-}
-
-const updateStateElements = (state: switcherState) => {
-    const elements = {
-        switcher: document.getElementById('kss-run-template-start') as HTMLDivElement,
-        status: document.getElementById('kss-current-status') as HTMLDivElement
-    }
-
-    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses, ...switcherLoaderClasses)
-    elements.switcher.classList.add(...state.switcherClasses)
-
-    elements.status.classList.remove(...statusClasses)
-    elements.status.classList.add(...state.statusClasses)
-
-    elements.status.innerHTML = `<h4>${state.text}</h4>`
-}
-
-const refreshModelState = (state: ModelState, modelName?: string) => {
-    globalThis.console.info(`Updating model info for state ${state}`)
-
-    switch (state) {
-        case 'failed':
-        case 'offline': {
-            updateStateElements({
-                switcherClasses: switcherOfflineClasses,
-                statusClasses: ['redOverlayGlow'],
-                text: 'All models are offline',
-                clickAction: globalThis.statusSwitchAction,
-            })
-            return
-        }
-        case 'online': {
-            updateStateElements({
-                switcherClasses: switcherOnlineClasses,
-                statusClasses: ['okText'],
-                text: modelName ?? 'Unknown model',
-                clickAction: globalThis.statusSwitchAction,
-            })
-            return
-        }
-        default: {
-            updateStateElements({
-                switcherClasses: switcherOnlineClasses,
-                statusClasses: ['comment'],
-                text: 'Loading...',
-                clickAction: null,
-            })
-        }
-    }
-}
-
-const switchRunStatus = async () => {
+export const switchRunStatus = async () => {
     const selectedTemplate = getSettings().selectedRunTemplate
 
     if (selectedTemplate === undefined) {
         return
     }
 
+    const selectedModel = getSettings().runTemplates.find(tmpl => tmpl.name === selectedTemplate)
+
+    if (selectedModel === undefined) {
+        throw new Error(`can't find model ${selectedTemplate}`)
+    }
+
     // Blocking input, showing loader
-    refreshModelState('loading')
+    refreshModelState({ status: 'loading', model: selectedModel.model })
 
     const currentState = await loadModelStatus()
 
     // Handle switch for handable statuses
-    switch (currentState.state) {
+    switch (currentState.status) {
         case 'failed':
         case 'offline': {
-            startOfflineModelAndWait(selectedTemplate)
-                .then(state => { refreshModelState(state) })
+            startModel(selectedModel)
+                .then(() => waitForModelStatus('online'))
+                .then(state => refreshModelState(state))
                 .catch((err: unknown) => {
                     toastr.error((err as Error).message)
                 })
@@ -306,8 +253,9 @@ const switchRunStatus = async () => {
             break
         }
         case 'online': {
-            stopOnlineModelAndWait(selectedTemplate)
-                .then(state => { refreshModelState(state, currentState.model) })
+            stopModel()
+                .then(() => waitForModelStatus('offline'))
+                .then(state => refreshModelState(state))
                 .catch((err: unknown) => {
                     toastr.error((err as Error).message)
                 })
@@ -315,7 +263,7 @@ const switchRunStatus = async () => {
             break
         }
         default: {
-            toastr.error(`Model ${currentState.model} currently in NOOP state '${currentState.state}'`)
+            toastr.error(`Model ${currentState.model} currently in NOOP state '${currentState.status}'`)
         }
     }
 }
@@ -341,14 +289,13 @@ export const addSettingsControls = async () => {
         delete: document.getElementById('kss-run-template-delete') as HTMLDivElement,
     }
 
+    elements.templatesSelect.onchange = updateSelectedTemplate
     elements.create.onclick = showCreatePopup
     elements.clone.onclick = showClonePopup
     elements.edit.onclick = showEditPopup
     elements.delete.onclick = showDeletePopup
-    elements.templatesSelect.onchange = updateSelectedTemplate
 
-
-    refreshModelState((await loadModelStatus()).state)
+    refreshModelState(await loadModelStatus())
 
     saveExtensionSettings()
     syncSelectWithSettings()
