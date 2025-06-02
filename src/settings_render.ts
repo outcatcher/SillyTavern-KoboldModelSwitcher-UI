@@ -1,10 +1,11 @@
-import { ALLOWED_CTX_SIZES, TEXT_LIST_SEP } from "./consts";
+import { ALLOWED_CTX_SIZES, ModelState, TEXT_LIST_SEP } from "./consts";
 import { generateOption } from "./elements";
-import { loadAvailableModels, loadModelStatus, startModel, stopModel } from "./requests";
+import { startOfflineModelAndWait, stopOnlineModelAndWait } from './model_state';
+import { loadAvailableModels, loadModelStatus } from "./requests";
 import editorHTML from './run_template.html';
 import { emptyRunTemplate, getSettings, RunTemplate, saveExtensionSettings } from "./settings";
 import html from './settings.html';
-import { waitFor } from "./timers";
+
 const { Popup, POPUP_TYPE } = SillyTavern.getContext();
 
 // eslint-disable-next-line max-statements,max-lines-per-function
@@ -218,94 +219,66 @@ const updateSelectedTemplate = (event: Event) => {
 }
 
 const
+    statusClasses = ['redOverlayGlow', 'okText', 'comment'],
     switcherLoaderClasses = ['loader'],
     switcherOfflineClasses = ['fa-play', 'active'],
     switcherOnlineClasses = ['fa-stop', 'redOverlayGlow']
 
-const loadingStatus = () => {
+
+interface switcherState {
+    switcherClasses: string[]
+    statusClasses: string[]
+    text: string
+    clickAction: (() => Promise<void>) | null
+}
+
+const updateStateElements = (state: switcherState) => {
     const elements = {
         switcher: document.getElementById('kss-run-template-start') as HTMLDivElement,
         status: document.getElementById('kss-current-status') as HTMLDivElement
     }
 
-    elements.switcher.onclick = null
-    // Remove all possible status classes
-    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses)
-    elements.switcher.classList.add(...switcherLoaderClasses)
+    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses, ...switcherLoaderClasses)
+    elements.switcher.classList.add(...state.switcherClasses)
 
-    elements.status.classList.remove('enabled', 'redOverlayGlow')
-    elements.status.classList.add('comment')
-    elements.status.innerHTML = `<h4>Loading...</h4>`
+    elements.status.classList.remove(...statusClasses)
+    elements.status.classList.add(...state.statusClasses)
+
+    elements.status.innerHTML = `<h4>${state.text}</h4>`
 }
 
-const updateStatus = async (clickCallback: (ev: MouseEvent) => Promise<void>) => {
-    const modelStatus = await loadModelStatus()
+const refreshModelState = (state: ModelState, modelName?: string) => {
+    globalThis.console.info(`Updating model info for state ${state}`)
 
-    const elements = {
-        switcher: document.getElementById('kss-run-template-start') as HTMLDivElement,
-        status: document.getElementById('kss-current-status') as HTMLDivElement
+    switch (state) {
+        case 'failed':
+        case 'offline': {
+            updateStateElements({
+                switcherClasses: switcherOfflineClasses,
+                statusClasses: ['redOverlayGlow'],
+                text: 'All models are offline',
+                clickAction: globalThis.statusSwitchAction,
+            })
+            return
+        }
+        case 'online': {
+            updateStateElements({
+                switcherClasses: switcherOnlineClasses,
+                statusClasses: ['okText'],
+                text: modelName ?? 'Unknown model',
+                clickAction: globalThis.statusSwitchAction,
+            })
+            return
+        }
+        default: {
+            updateStateElements({
+                switcherClasses: switcherOnlineClasses,
+                statusClasses: ['comment'],
+                text: 'Loading...',
+                clickAction: null,
+            })
+        }
     }
-
-    const online = modelStatus.status === 'online'
-
-    const switcherNewClasses = online
-        ? switcherOnlineClasses
-        : switcherOfflineClasses
-
-    elements.switcher.onclick = clickCallback
-    elements.switcher.classList.remove(...switcherLoaderClasses, ...switcherOnlineClasses, ...switcherOfflineClasses)
-    elements.switcher.classList.add(...switcherNewClasses)
-
-    const statusClasses = online ? ['okText'] : ['redOverlayGlow']
-    const statusText = online ? modelStatus.model : 'All models are offline'
-
-    elements.status.classList.remove('enabled', 'redOverlayGlow')
-    elements.status.classList.add(...statusClasses)
-    elements.status.innerHTML = `<h4>${statusText}</h4>`
-}
-
-const startOfflineModel = async (templateName: string, switchCallback: () => Promise<void>) => {
-    const selectedModel = getSettings().runTemplates.find(tmpl => tmpl.name === templateName)
-
-    if (selectedModel === undefined) {
-        throw new Error(`can't find model ${templateName}`)
-    }
-
-    await startModel(selectedModel)
-
-    const twoMinutes = 120000,
-        twoSeconds = 2000
-
-    waitFor(async () => {
-        const status = await loadModelStatus()
-
-        return ['online', 'failed'].includes(status.status)
-    }, twoMinutes, twoSeconds)
-        .then(async () => {
-            await updateStatus(switchCallback)
-        })
-        .catch(() => {
-            toastr.error('Failed to wait for model status online/failed')
-        })
-}
-
-const stopOnlineModel = async (switchCallback: () => Promise<void>) => {
-    await stopModel()
-
-    const shortRetry = 100,
-        tenSeconds = 10000
-
-    waitFor(async () => {
-        const status = await loadModelStatus()
-
-        return ['offline', 'failed'].includes(status.status)
-    }, tenSeconds, shortRetry)
-        .then(async () => {
-            await updateStatus(switchCallback)
-        })
-        .catch(() => {
-            toastr.error('Failed to wait for model status offline/failed')
-        })
 }
 
 const switchRunStatus = async () => {
@@ -315,15 +288,17 @@ const switchRunStatus = async () => {
         return
     }
 
-    loadingStatus()
+    // Blocking input, showing loader
+    refreshModelState('loading')
 
     const currentState = await loadModelStatus()
 
     // Handle switch for handable statuses
-    switch (currentState.status) {
+    switch (currentState.state) {
         case 'failed':
         case 'offline': {
-            await startOfflineModel(selectedTemplate, switchRunStatus)
+            startOfflineModelAndWait(selectedTemplate)
+                .then(state => { refreshModelState(state) })
                 .catch((err: unknown) => {
                     toastr.error((err as Error).message)
                 })
@@ -331,7 +306,8 @@ const switchRunStatus = async () => {
             break
         }
         case 'online': {
-            await stopOnlineModel(switchRunStatus)
+            stopOnlineModelAndWait(selectedTemplate)
+                .then(state => { refreshModelState(state, currentState.model) })
                 .catch((err: unknown) => {
                     toastr.error((err as Error).message)
                 })
@@ -339,10 +315,12 @@ const switchRunStatus = async () => {
             break
         }
         default: {
-            toastr.error(`Model ${currentState.model} currently in ${currentState.status} status`)
+            toastr.error(`Model ${currentState.model} currently in NOOP state '${currentState.state}'`)
         }
     }
 }
+
+globalThis.statusSwitchAction = switchRunStatus
 
 export const addSettingsControls = async () => {
     const settingsContainer = document.getElementById('kobold-switcher-container') ?? document.getElementById('extensions_settings2');
@@ -369,7 +347,8 @@ export const addSettingsControls = async () => {
     elements.delete.onclick = showDeletePopup
     elements.templatesSelect.onchange = updateSelectedTemplate
 
-    await updateStatus(switchRunStatus)
+
+    refreshModelState((await loadModelStatus()).state)
 
     saveExtensionSettings()
     syncSelectWithSettings()

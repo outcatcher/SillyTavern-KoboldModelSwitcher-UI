@@ -4,7 +4,8 @@ export { };
 import '../../../../public/global';
 // 2. Import when extension is server-scoped
 import '../../../../global';
+import '/e/ll_models/SillyTavern-Launcher/SillyTavern/public/global'
 
 declare global {
-    // Add global type declarations here
+    function statusSwitchAction(): Promise<void>;
 }

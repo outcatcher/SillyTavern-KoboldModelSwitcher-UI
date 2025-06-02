@@ -1,6 +1,6 @@
 import { MODULE_NAME } from "./consts"
 
-const { saveSettingsDebounced } = SillyTavern.getContext();
+const { saveSettingsDebounced } = SillyTavern.getContext()
 
 export interface RunTemplate {
     name: string

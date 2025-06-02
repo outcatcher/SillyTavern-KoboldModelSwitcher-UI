@@ -14,7 +14,7 @@ const requestHeaders = () => {
     }
 }
 
-export const init = async () => {
+export const initHeaders = async () => {
     await fetch('/csrf-token')
         .then(resp => {
             if (!resp.ok) {
@@ -43,7 +43,7 @@ export const loadAvailableModels = async () => await fetch('/api/plugins/kobold-
     .then((data: { models: string[] }) => data.models)
 
 export interface ModelStatus {
-    status: ModelState
+    state: ModelState
     model: string
 }
 
