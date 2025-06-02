@@ -11,6 +11,6 @@
         "allowSyntheticDefaultImports": true,
         "allowJs": true
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx", "globals.d.ts"],
+    "include": ["src/**/*.ts", "src/**/*.tsx", "*.d.ts"],
     "exclude": ["node_modules", "dist", "bin"]
 }

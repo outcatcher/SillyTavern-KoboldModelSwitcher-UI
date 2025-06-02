@@ -6,5 +6,5 @@ import '../../../../public/global';
 import '../../../../global';
 
 declare global {
-    // Add global type declarations here
+    function statusSwitchAction(): Promise<void>;
 }

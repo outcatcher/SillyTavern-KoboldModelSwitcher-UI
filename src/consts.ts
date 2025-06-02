@@ -32,7 +32,7 @@ export const ALLOWED_CTX_SIZES = [
     131072,
 ]
 
-export type ModelState =
+export type ModelStatus =
     'offline'
     | 'loading'
     | 'online'

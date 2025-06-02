@@ -18,7 +18,7 @@ export default tseslint.config(
         rules: {
             'no-warning-comments': 'warn',
             'max-statements': ['warn', { max: 15 }],
-            'max-lines-per-function': 'warn',
+            'max-lines-per-function': ['warn', { max: 60 }],
             // Ugly
             'one-var': 'off',
             // Ha-ha, ternary power

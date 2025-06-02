@@ -1,10 +1,11 @@
-import { ALLOWED_CTX_SIZES, TEXT_LIST_SEP } from "./consts";
+import { ALLOWED_CTX_SIZES, MODULE_NAME, TEXT_LIST_SEP } from "./consts";
 import { generateOption } from "./elements";
+import { refreshModelState, waitForModelStatus } from './model_state';
 import { loadAvailableModels, loadModelStatus, startModel, stopModel } from "./requests";
 import editorHTML from './run_template.html';
 import { emptyRunTemplate, getSettings, RunTemplate, saveExtensionSettings } from "./settings";
 import html from './settings.html';
-import { waitFor } from "./timers";
+
 const { Popup, POPUP_TYPE } = SillyTavern.getContext();
 
 // eslint-disable-next-line max-statements,max-lines-per-function
@@ -101,15 +102,19 @@ const checkForDuplicates = (templateName: string) => {
     return success
 }
 
-const showCreatePopup = async () => {
-    globalThis.console.info('Create popup created')
+const showCreatePopup = async (fromTemplate?: RunTemplate) => {
+    globalThis.console.info(`[${MODULE_NAME}]`, 'Create popup created')
 
     const settings = getSettings()
+
+    const template = fromTemplate === undefined
+        ? { ...emptyRunTemplate }
+        : { ...fromTemplate, name: `${fromTemplate.name} (copy)` }
 
     const popup = new Popup(
         'New run template name (UNIQUE)',
         POPUP_TYPE.INPUT,
-        '',
+        template.name,
         {
             okButton: 'Create',
             cancelButton: 'Cancel',
@@ -120,11 +125,10 @@ const showCreatePopup = async () => {
 
     let templateName = await popup.show()
     if (templateName && typeof templateName === 'string') {
-        if (settings.runTemplates.find(tmp => tmp.name === templateName)) {
-            templateName = `${templateName} (${Date.now().toString()})`
-        }
+        template.name = templateName
 
-        settings.runTemplates.push({ ...emptyRunTemplate, name: templateName })
+        settings.runTemplates.push(template)
+        settings.selectedRunTemplate = templateName
 
         saveExtensionSettings()
     }
@@ -134,39 +138,8 @@ const showCreatePopup = async () => {
 
 const showClonePopup = async () => {
     const settings = getSettings()
-
-    const selectedTemplate = getSettings().runTemplates.find(tmp => tmp.name === settings.selectedRunTemplate)
-
-    if (settings.selectedRunTemplate === undefined || selectedTemplate === undefined) {
-        await showCreatePopup()
-
-        return
-    }
-
-    const popup = new Popup(
-        'New run template name (UNIQUE)',
-        POPUP_TYPE.INPUT,
-        `${settings.selectedRunTemplate} (copy)`,
-        {
-            okButton: 'Create',
-            cancelButton: 'Cancel',
-            wide: true,
-            // There should no duplicates
-            onClosing: pop => checkForDuplicates(pop.value as string),
-        })
-
-    let templateName = await popup.show()
-    if (templateName && typeof templateName === 'string') {
-        if (settings.runTemplates.find(tmp => tmp.name === templateName)) {
-            templateName = `${templateName} (${Date.now().toString()})`
-        }
-
-        settings.runTemplates.push({ ...selectedTemplate, name: templateName })
-
-        saveExtensionSettings()
-    }
-
-    syncSelectWithSettings()
+    const originalTemplate = settings.runTemplates.find(tmp => tmp.name === settings.selectedRunTemplate)
+    await showCreatePopup(originalTemplate)
 }
 
 const showEditPopup = async () => {
@@ -175,7 +148,7 @@ const showEditPopup = async () => {
 
     const template = getSettings().runTemplates.find(tmp => tmp.name === targetName)
     if (template === undefined) {
-        globalThis.console.error(`run template not found by name ${targetName}`)
+        globalThis.console.error(`[${MODULE_NAME}]`, `run template not found by name ${targetName}`)
 
         return
     }
@@ -217,105 +190,21 @@ const updateSelectedTemplate = (event: Event) => {
     saveExtensionSettings()
 }
 
-const
-    switcherLoaderClasses = ['loader'],
-    switcherOfflineClasses = ['fa-play', 'active'],
-    switcherOnlineClasses = ['fa-stop', 'redOverlayGlow']
-
-const loadingStatus = () => {
-    const elements = {
-        switcher: document.getElementById('kss-run-template-start') as HTMLDivElement,
-        status: document.getElementById('kss-current-status') as HTMLDivElement
-    }
-
-    elements.switcher.onclick = null
-    // Remove all possible status classes
-    elements.switcher.classList.remove(...switcherOnlineClasses, ...switcherOfflineClasses)
-    elements.switcher.classList.add(...switcherLoaderClasses)
-
-    elements.status.classList.remove('enabled', 'redOverlayGlow')
-    elements.status.classList.add('comment')
-    elements.status.innerHTML = `<h4>Loading...</h4>`
-}
-
-const updateStatus = async (clickCallback: (ev: MouseEvent) => Promise<void>) => {
-    const modelStatus = await loadModelStatus()
-
-    const elements = {
-        switcher: document.getElementById('kss-run-template-start') as HTMLDivElement,
-        status: document.getElementById('kss-current-status') as HTMLDivElement
-    }
-
-    const online = modelStatus.status === 'online'
-
-    const switcherNewClasses = online
-        ? switcherOnlineClasses
-        : switcherOfflineClasses
-
-    elements.switcher.onclick = clickCallback
-    elements.switcher.classList.remove(...switcherLoaderClasses, ...switcherOnlineClasses, ...switcherOfflineClasses)
-    elements.switcher.classList.add(...switcherNewClasses)
-
-    const statusClasses = online ? ['okText'] : ['redOverlayGlow']
-    const statusText = online ? modelStatus.model : 'All models are offline'
-
-    elements.status.classList.remove('enabled', 'redOverlayGlow')
-    elements.status.classList.add(...statusClasses)
-    elements.status.innerHTML = `<h4>${statusText}</h4>`
-}
-
-const startOfflineModel = async (templateName: string, switchCallback: () => Promise<void>) => {
-    const selectedModel = getSettings().runTemplates.find(tmpl => tmpl.name === templateName)
-
-    if (selectedModel === undefined) {
-        throw new Error(`can't find model ${templateName}`)
-    }
-
-    await startModel(selectedModel)
-
-    const twoMinutes = 120000,
-        twoSeconds = 2000
-
-    waitFor(async () => {
-        const status = await loadModelStatus()
-
-        return ['online', 'failed'].includes(status.status)
-    }, twoMinutes, twoSeconds)
-        .then(async () => {
-            await updateStatus(switchCallback)
-        })
-        .catch(() => {
-            toastr.error('Failed to wait for model status online/failed')
-        })
-}
-
-const stopOnlineModel = async (switchCallback: () => Promise<void>) => {
-    await stopModel()
-
-    const shortRetry = 100,
-        tenSeconds = 10000
-
-    waitFor(async () => {
-        const status = await loadModelStatus()
-
-        return ['offline', 'failed'].includes(status.status)
-    }, tenSeconds, shortRetry)
-        .then(async () => {
-            await updateStatus(switchCallback)
-        })
-        .catch(() => {
-            toastr.error('Failed to wait for model status offline/failed')
-        })
-}
-
-const switchRunStatus = async () => {
+export const switchRunStatus = async () => {
     const selectedTemplate = getSettings().selectedRunTemplate
 
     if (selectedTemplate === undefined) {
         return
     }
 
-    loadingStatus()
+    const selectedModel = getSettings().runTemplates.find(tmpl => tmpl.name === selectedTemplate)
+
+    if (selectedModel === undefined) {
+        throw new Error(`can't find model ${selectedTemplate}`)
+    }
+
+    // Blocking input, showing loader
+    refreshModelState({ status: 'loading', model: selectedModel.model })
 
     const currentState = await loadModelStatus()
 
@@ -323,7 +212,9 @@ const switchRunStatus = async () => {
     switch (currentState.status) {
         case 'failed':
         case 'offline': {
-            await startOfflineModel(selectedTemplate, switchRunStatus)
+            startModel(selectedModel)
+                .then(() => waitForModelStatus('online'))
+                .then(state => refreshModelState(state))
                 .catch((err: unknown) => {
                     toastr.error((err as Error).message)
                 })
@@ -331,7 +222,9 @@ const switchRunStatus = async () => {
             break
         }
         case 'online': {
-            await stopOnlineModel(switchRunStatus)
+            stopModel()
+                .then(() => waitForModelStatus('offline'))
+                .then(state => refreshModelState(state))
                 .catch((err: unknown) => {
                     toastr.error((err as Error).message)
                 })
@@ -339,10 +232,12 @@ const switchRunStatus = async () => {
             break
         }
         default: {
-            toastr.error(`Model ${currentState.model} currently in ${currentState.status} status`)
+            toastr.error(`Model ${currentState.model} currently in NOOP state '${currentState.status}'`)
         }
     }
 }
+
+globalThis.statusSwitchAction = switchRunStatus
 
 export const addSettingsControls = async () => {
     const settingsContainer = document.getElementById('kobold-switcher-container') ?? document.getElementById('extensions_settings2');
@@ -363,13 +258,13 @@ export const addSettingsControls = async () => {
         delete: document.getElementById('kss-run-template-delete') as HTMLDivElement,
     }
 
-    elements.create.onclick = showCreatePopup
+    elements.templatesSelect.onchange = updateSelectedTemplate
+    elements.create.onclick = () => showCreatePopup
     elements.clone.onclick = showClonePopup
     elements.edit.onclick = showEditPopup
     elements.delete.onclick = showDeletePopup
-    elements.templatesSelect.onchange = updateSelectedTemplate
 
-    await updateStatus(switchRunStatus)
+    refreshModelState(await loadModelStatus())
 
     saveExtensionSettings()
     syncSelectWithSettings()
