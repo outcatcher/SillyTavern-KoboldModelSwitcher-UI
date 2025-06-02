@@ -102,7 +102,7 @@ const checkForDuplicates = (templateName: string) => {
     return success
 }
 
-const showCreatePopup = async (fromTemplate?: RunTemplate) => {
+const showCloneCreatePopup = async (fromTemplate?: RunTemplate) => {
     globalThis.console.info(`[${MODULE_NAME}]`, 'Create popup created')
 
     const settings = getSettings()
@@ -123,7 +123,7 @@ const showCreatePopup = async (fromTemplate?: RunTemplate) => {
             onClosing: pop => checkForDuplicates(pop.value as string),
         })
 
-    let templateName = await popup.show()
+    const templateName = await popup.show()
     if (templateName && typeof templateName === 'string') {
         template.name = templateName
 
@@ -139,7 +139,11 @@ const showCreatePopup = async (fromTemplate?: RunTemplate) => {
 const showClonePopup = async () => {
     const settings = getSettings()
     const originalTemplate = settings.runTemplates.find(tmp => tmp.name === settings.selectedRunTemplate)
-    await showCreatePopup(originalTemplate)
+    await showCloneCreatePopup(originalTemplate)
+}
+
+const showCreatePopup = async () => {
+    await showCloneCreatePopup()
 }
 
 const showEditPopup = async () => {
@@ -178,6 +182,7 @@ const showDeletePopup = async () => {
 
     if (await popup.show()) {
         settings.runTemplates = settings.runTemplates.filter(tmp => tmp.name !== select.value)
+        settings.selectedRunTemplate = settings.runTemplates.at(0)?.name
 
         saveExtensionSettings()
         syncSelectWithSettings()
@@ -259,7 +264,7 @@ export const addSettingsControls = async () => {
     }
 
     elements.templatesSelect.onchange = updateSelectedTemplate
-    elements.create.onclick = () => showCreatePopup
+    elements.create.onclick = showCreatePopup
     elements.clone.onclick = showClonePopup
     elements.edit.onclick = showEditPopup
     elements.delete.onclick = showDeletePopup
