@@ -102,15 +102,19 @@ const checkForDuplicates = (templateName: string) => {
     return success
 }
 
-const showCreatePopup = async () => {
+const showCreatePopup = async (fromTemplate?: RunTemplate) => {
     globalThis.console.info(`[${MODULE_NAME}]`, 'Create popup created')
 
     const settings = getSettings()
 
+    const template = fromTemplate === undefined
+        ? { ...emptyRunTemplate }
+        : { ...fromTemplate, name: `${fromTemplate.name} (copy)` }
+
     const popup = new Popup(
         'New run template name (UNIQUE)',
         POPUP_TYPE.INPUT,
-        '',
+        template.name,
         {
             okButton: 'Create',
             cancelButton: 'Cancel',
@@ -121,11 +125,9 @@ const showCreatePopup = async () => {
 
     let templateName = await popup.show()
     if (templateName && typeof templateName === 'string') {
-        if (settings.runTemplates.find(tmp => tmp.name === templateName)) {
-            templateName = `${templateName} (${Date.now().toString()})`
-        }
+        template.name = templateName
 
-        settings.runTemplates.push({ ...emptyRunTemplate, name: templateName })
+        settings.runTemplates.push(template)
         settings.selectedRunTemplate = templateName
 
         saveExtensionSettings()
@@ -136,41 +138,8 @@ const showCreatePopup = async () => {
 
 const showClonePopup = async () => {
     const settings = getSettings()
-
-    const selectedTemplate = getSettings().runTemplates.find(tmp => tmp.name === settings.selectedRunTemplate)
-
-    if (settings.selectedRunTemplate === undefined || selectedTemplate === undefined) {
-        await showCreatePopup()
-
-        return
-    }
-
-    // TODO: duplicating showCreatePopup, rewrite
-    const popup = new Popup(
-        'New run template name (UNIQUE)',
-        POPUP_TYPE.INPUT,
-        `${settings.selectedRunTemplate} (copy)`,
-        {
-            okButton: 'Create',
-            cancelButton: 'Cancel',
-            wide: true,
-            // There should no duplicates
-            onClosing: pop => checkForDuplicates(pop.value as string),
-        })
-
-    let templateName = await popup.show()
-    if (templateName && typeof templateName === 'string') {
-        if (settings.runTemplates.find(tmp => tmp.name === templateName)) {
-            templateName = `${templateName} (${Date.now().toString()})`
-        }
-
-        settings.runTemplates.push({ ...selectedTemplate, name: templateName })
-        settings.selectedRunTemplate = templateName
-
-        saveExtensionSettings()
-    }
-
-    syncSelectWithSettings()
+    const originalTemplate = settings.runTemplates.find(tmp => tmp.name === settings.selectedRunTemplate)
+    await showCreatePopup(originalTemplate)
 }
 
 const showEditPopup = async () => {
@@ -290,7 +259,7 @@ export const addSettingsControls = async () => {
     }
 
     elements.templatesSelect.onchange = updateSelectedTemplate
-    elements.create.onclick = showCreatePopup
+    elements.create.onclick = () => showCreatePopup
     elements.clone.onclick = showClonePopup
     elements.edit.onclick = showEditPopup
     elements.delete.onclick = showDeletePopup

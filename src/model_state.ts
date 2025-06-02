@@ -89,7 +89,7 @@ const updateStateElements = (state: switcherState) => {
     elements.status.classList.remove(...statusClasses)
     elements.status.classList.add(...state.statusClasses)
 
-    elements.status.innerHTML = `<h4>${state.text}</h4>`
+    elements.status.innerHTML = `<h5>${state.text}</h5>`
 }
 
 // Refresh page elements to match the model states

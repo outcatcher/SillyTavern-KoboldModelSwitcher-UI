@@ -1,5 +1,4 @@
-import { SlashCommandEnumValue } from '/e/ll_models/SillyTavern-Launcher/SillyTavern/public/scripts/slash-commands/SlashCommandEnumValue'
-
+import { SlashCommandEnumValue } from '../../../../slash-commands/SlashCommandEnumValue'
 import { refreshModelState, waitForModelStatus } from './model_state'
 import { loadModelStatus, startModel, stopModel } from './requests'
 import { getSettings } from './settings'
