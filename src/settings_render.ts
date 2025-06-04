@@ -1,4 +1,4 @@
-import { ALLOWED_CTX_SIZES, MODULE_NAME, TEXT_LIST_SEP } from "./consts";
+import { DEFAULT_CTX_SIZES, MODULE_NAME, TEXT_LIST_SEP } from "./consts";
 import { generateOption } from "./elements";
 import { refreshModelState, waitForModelStatus } from './model_state';
 import { loadAvailableModels, loadModelStatus, startModel, stopModel } from "./requests";
@@ -25,18 +25,13 @@ const showRunTemplateEditPopup = async (tmpl: RunTemplate) => {
 
     const elements = {
         modelSelect: document.getElementById('model') as HTMLSelectElement,
-        contextSizeSelect: document.getElementById('context-size') as HTMLSelectElement,
+        contextSize: document.getElementById('context-size') as HTMLInputElement,
+        contextSizeSlider: document.getElementById('context-size-slider') as HTMLInputElement,
+        contextSizeMarkers: document.getElementById('context-size-markers') as HTMLDataListElement,
         gpuLayers: document.getElementById('gpu-layers') as HTMLInputElement,
         threads: document.getElementById('threads') as HTMLInputElement,
         tensorSplit: document.getElementById('tensor-split') as HTMLInputElement,
     }
-
-    ALLOWED_CTX_SIZES
-        .forEach(size => {
-            elements
-                .contextSizeSelect
-                .appendChild(generateOption(size.toString(), { selected: size === tmpl.contextSize }))
-        })
 
     const existingModels = await loadAvailableModels()
     existingModels
@@ -46,13 +41,32 @@ const showRunTemplateEditPopup = async (tmpl: RunTemplate) => {
                 .appendChild(generateOption(model, { selected: model === tmpl.model }))
         })
 
-    const tmplData = tmpl ?? emptyRunTemplate
+    const tmplData = tmpl === undefined ? { ...emptyRunTemplate } : { ...tmpl }
 
     elements.modelSelect.value = tmplData.model ?? ''
     elements.modelSelect.onchange = () => { tmplData.model = elements.modelSelect.value }
 
-    elements.contextSizeSelect.value = tmplData.contextSize?.toString() ?? ''
-    elements.contextSizeSelect.onchange = () => { tmplData.contextSize = parseInt(elements.contextSizeSelect.value, 10) }
+    elements.contextSize.value = tmplData.contextSize?.toString() ?? ''
+    elements.contextSize.onchange = () => {
+        tmplData.contextSize = parseInt(elements.contextSize.value, 10)
+
+        if (elements.contextSizeSlider.value !== elements.contextSize.value) {
+            elements.contextSizeSlider.value = elements.contextSize.value
+        }
+    }
+
+    DEFAULT_CTX_SIZES.forEach(val => {
+        elements.contextSizeMarkers.appendChild(generateOption(val.toString()))
+    })
+
+    elements.contextSizeSlider.value = elements.contextSize.value
+    elements.contextSizeSlider.onchange = () => {
+        tmplData.contextSize = parseInt(elements.contextSizeSlider.value, 10)
+
+        if (elements.contextSizeSlider.value !== elements.contextSize.value) {
+            elements.contextSize.value = elements.contextSizeSlider.value
+        }
+    }
 
     elements.gpuLayers.value = tmplData.gpuLayers?.toString() ?? ''
     elements.gpuLayers.onchange = () => { tmplData.gpuLayers = parseInt(elements.gpuLayers.value, 10) }

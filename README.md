@@ -24,7 +24,7 @@ Create button creates new template with prompted name.
 Edit will open template edit menu allowing to set up:
 
 - Model name (`--model`) - dropdown with GGUF models in server-configured `basePath`.
-- Context size (`--contextsize`) - dropdown with context sizes (from koboldcpp help).
+- Context size (`--contextsize`) - size of allocated context [ 256 to 262144 ].
 - GPU Layers (`--gpulayers`) - number of layers offloaded to GPU.
 - Threads (`--threads`) - number of used threads.
 - Tensor split (`--tensor_split`) - space-separated list, ratio to split tensors across multiple GPUs.
