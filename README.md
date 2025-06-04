@@ -8,17 +8,18 @@ Backward-incompatible versions of server plugin will have version 0.3 and up.
 ## Configuration
 
 Plugin is using template approach similar to `Image Generation` extension.
+
 Before starting any model template must be created in settings.
 
-### Start/stop switch
+#### Start/stop switch
 
 Start selected template or stops running one. Is not interactable while model is loading/stopping.
 
-### Create button
+#### Create
 
 Create button creates new template with prompted name.
 
-### Edit
+#### Edit
 
 Edit will open template edit menu allowing to set up:
 
@@ -28,11 +29,11 @@ Edit will open template edit menu allowing to set up:
 - Threads (`--threads`) - number of used threads.
 - Tensor split (`--tensor_split`) - space-separated list, ratio to split tensors across multiple GPUs.
 
-### Duplicate
+#### Duplicate
 
 Duplicates existing template configuration with prompted name.
 
-### Delete
+#### Delete
 
 Removes selected template.
 
