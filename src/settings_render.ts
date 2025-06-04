@@ -33,15 +33,15 @@ const showRunTemplateEditPopup = async (tmpl: RunTemplate) => {
         tensorSplit: document.getElementById('tensor-split') as HTMLInputElement,
     }
 
+    const tmplData = tmpl === undefined ? { ...emptyRunTemplate } : { ...tmpl }
+
     const existingModels = await loadAvailableModels()
     existingModels
         .forEach(model => {
             elements
                 .modelSelect
-                .appendChild(generateOption(model, { selected: model === tmpl.model }))
+                .appendChild(generateOption(model, { selected: model === tmplData.model }))
         })
-
-    const tmplData = tmpl === undefined ? { ...emptyRunTemplate } : { ...tmpl }
 
     elements.modelSelect.value = tmplData.model ?? ''
     elements.modelSelect.onchange = () => { tmplData.model = elements.modelSelect.value }
