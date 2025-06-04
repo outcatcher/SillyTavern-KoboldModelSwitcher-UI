@@ -6,7 +6,7 @@
     "js": "dist/index.js",
     "css": "",
     "author": "outcatcher",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "homePage": "https://github.com/outcatcher/SillyTavern-KoboldModelSwitcher-UI",
     "auto_update": true
 }

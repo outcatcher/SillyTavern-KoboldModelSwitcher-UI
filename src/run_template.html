@@ -7,9 +7,28 @@
     </div>
     <div>
         <label for="context-size">Context Size</label>
-        <select id="context-size" class="text_pole flex1">
-            <!-- context size options to be inserted here -->
-        </select>
+        <input
+            class="neo-range-slider"
+            type="range"
+            id="context-size-slider"
+            name="volume"
+            min="256"
+            max="262144"
+            step="256"
+            list="context-size-markers"
+        />
+        <datalist id="context-size-markers">
+            <!-- default values -->
+        </datalist>
+        <input
+            type="number"
+            id="context-size"
+            class="text_pole"
+            min="256"
+            step="256"
+            max="262144"
+            data-for="context-size-slider"
+        />
     </div>
     <div>
         <label for="gpu-layers">GPU Layers</label>

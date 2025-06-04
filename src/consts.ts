@@ -5,7 +5,7 @@ export const MODULE_NAME = 'KoboldModelSwitcher'
 
 export const TEXT_LIST_SEP = ' '
 
-export const ALLOWED_CTX_SIZES = [
+export const DEFAULT_CTX_SIZES = [
     256,
     512,
     1024,
@@ -31,6 +31,10 @@ export const ALLOWED_CTX_SIZES = [
     114688,
     131072,
 ]
+
+
+export const MAX_CONTEXT_SIZE = 262144,
+    MIN_CTX_SIZE = 256
 
 export type ModelStatus =
     'offline'
