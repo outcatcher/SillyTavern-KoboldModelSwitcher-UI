@@ -99,8 +99,7 @@ interface refreshState {
 
 // Refresh page elements to match the model states
 export const refreshModelState = (state: refreshState) => {
-    globalThis.console.info(`[${MODULE_NAME}]`, `Updating model info for status ${state.status}`)
-    globalThis.console.info(`[${MODULE_NAME}]`, `Click handler is ${globalThis.statusSwitchAction.toString()}`)
+    globalThis.console.info(`[${MODULE_NAME}]`, `Updating model info for status '${state.status}'`)
 
     switch (state.status) {
         case 'failed':
