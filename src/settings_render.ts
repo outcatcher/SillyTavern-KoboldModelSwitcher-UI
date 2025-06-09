@@ -222,15 +222,15 @@ export const switchRunStatus = async () => {
         throw new Error(`can't find model ${selectedTemplate}`)
     }
 
-    // Blocking input, showing loader
-    refreshModelState({ status: 'loading', model: selectedModel.model })
-
     const currentState = await loadModelStatus()
 
     // Handle switch for handable statuses
     switch (currentState.status) {
         case 'failed':
         case 'offline': {
+            // Blocking input, showing loader. Note that loading is for selected template, not running model.
+            refreshModelState({ status: 'loading', model: selectedModel.model })
+
             startModel(selectedModel)
                 .then(() => waitForModelStatus('online'))
                 .then(state => refreshModelState(state))
@@ -241,6 +241,9 @@ export const switchRunStatus = async () => {
             break
         }
         case 'online': {
+            // Blocking input, showing loader. Note that stopping is for current model, not selected template.
+            refreshModelState({ status: 'stopping', model: currentState.model })
+
             stopModel()
                 .then(() => waitForModelStatus('offline'))
                 .then(state => refreshModelState(state))

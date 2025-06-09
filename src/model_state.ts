@@ -92,10 +92,14 @@ const updateStateElements = (state: switcherState) => {
     elements.status.innerHTML = `<h5>${state.text}</h5>`
 }
 
+interface refreshState {
+    status: ModelStatus
+    model: string
+}
+
 // Refresh page elements to match the model states
-export const refreshModelState = (state: ModelState) => {
-    globalThis.console.info(`[${MODULE_NAME}]`, `Updating model info for status ${state.status}`)
-    globalThis.console.info(`[${MODULE_NAME}]`, `Click handler is ${globalThis.statusSwitchAction.toString()}`)
+export const refreshModelState = (state: refreshState) => {
+    globalThis.console.info(`[${MODULE_NAME}]`, `Updating model info for status '${state.status}'`)
 
     switch (state.status) {
         case 'failed':
@@ -117,12 +121,30 @@ export const refreshModelState = (state: ModelState) => {
             })
             break
         }
-        default: {
+        case 'loading': {
             updateStateElements({
                 switcherClasses: switcherLoaderClasses,
                 statusClasses: ['comment'],
                 text: `Loading model ${state.model}...`,
                 clickAction: null,
+            })
+            break
+        }
+        case 'stopping': {
+            updateStateElements({
+                switcherClasses: switcherLoaderClasses,
+                statusClasses: ['comment'],
+                text: `Stopping model ${state.model}...`,
+                clickAction: null,
+            })
+            break
+        }
+        default: {
+            updateStateElements({
+                switcherClasses: switcherOfflineClasses,
+                statusClasses: ['redOverlayGlow'],
+                text: 'Unknown model status',
+                clickAction: globalThis.statusSwitchAction,
             })
         }
     }
