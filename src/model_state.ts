@@ -145,7 +145,7 @@ export const refreshModelState = (state: refreshState) => {
                 switcherClasses: switcherOfflineClasses,
                 statusClasses: ['redOverlayGlow'],
                 text: 'Unknown model status',
-                clickAction: null,
+                clickAction: globalThis.statusSwitchAction,
             })
         }
     }
